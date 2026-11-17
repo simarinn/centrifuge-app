@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>遠心分離・最適バランス計算シミュレーター</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 数値入力のスピンボタンを非表示にしてスマホでスッキリ見せる */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased pb-12">
+
+  <!-- ヘッダー -->
+  <header class="bg-gradient-to-r from-teal-700 to-cyan-700 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-lg mx-auto px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <!-- ローターアイコン SVG -->
+        <div class="bg-white/15 p-2 rounded-xl">
+          <svg class="w-6 h-6 text-teal-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="12" cy="6.5" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="17.5" r="1.5" fill="currentColor" />
+            <circle cx="6.5" cy="12" r="1.5" fill="currentColor" />
+            <circle cx="17.5" cy="12" r="1.5" fill="currentColor" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight leading-tight">遠心分離バランス計算</h1>
+          <p class="text-[11px] text-teal-100 opacity-90">最適ペア＆水入り重量シミュレーター</p>
+        </div>
+      </div>
+      <span id="tube-count-badge" class="bg-teal-900/50 text-teal-50 text-xs font-semibold px-2.5 py-1 rounded-full border border-teal-400/30">
+        有効: 5本
+      </span>
+    </div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 pt-4 space-y-5">
+
+    <!-- クイック操作バー -->
+    <section class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/80">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs font-semibold text-slate-500 mr-1">プリセット:</span>
+          <button type="button" onclick="setPresetCount(5)" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 transition active:scale-95">5本</button>
+          <button type="button" onclick="setPresetCount(6)" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 transition active:scale-95">6本</button>
+          <button type="button" onclick="setPresetCount(8)" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 transition active:scale-95">8本</button>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="loadSampleData()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200 hover:bg-cyan-100 transition active:scale-95">
+            サンプル値
+          </button>
+          <button type="button" onclick="clearAllValues()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition active:scale-95">
+            クリア
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 試料重量入力カード -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+          <span class="w-2 h-4 bg-teal-600 rounded-full inline-block"></span>
+          試料の重量を入力 (g)
+        </h2>
+        <span class="text-[11px] text-slate-400">入力すると自動で計算します</span>
+      </div>
+
+      <!-- 入力フィールド一覧 -->
+      <div id="samples-container" class="space-y-2.5">
+        <!-- JSで動的に生成 -->
+      </div>
+
+      <!-- 試料追加ボタン -->
+      <div class="mt-3.5 pt-3 border-t border-slate-100 flex gap-2">
+        <button type="button" onclick="addSampleRow()" class="flex-1 py-2.5 px-4 rounded-xl border-2 border-dashed border-teal-300 text-teal-700 font-bold text-sm hover:bg-teal-50 transition flex items-center justify-center gap-1.5 active:scale-[0.99]">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          試料を追加
+        </button>
+        <button type="button" onclick="calculateOptimalBalance()" class="py-2.5 px-5 rounded-xl bg-teal-600 text-white font-bold text-sm shadow-sm hover:bg-teal-700 transition active:scale-[0.98]">
+          再計算
+        </button>
+      </div>
+    </section>
+
+    <!-- 計算結果エリア -->
+    <section id="result-section" class="space-y-4">
+      <!-- バランス管（水入り）の案内カード -->
+      <div id="water-tube-card" class="rounded-2xl p-4 shadow-sm border transition-all">
+        <!-- JSで内容を動的描画 -->
+      </div>
+
+      <!-- 最適ペア一覧カード -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+            <span class="w-2 h-4 bg-cyan-600 rounded-full inline-block"></span>
+            向かい合わせにするペア
+          </h2>
+          <span id="max-diff-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+            最大差: - g
+          </span>
+        </div>
+
+        <div id="pairs-list" class="space-y-2.5">
+          <!-- JSでペアカードを動的描画 -->
+        </div>
+      </div>
+
+      <!-- 視覚的ローター配置ガイド（SVG図解） -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+            <span class="w-2 h-4 bg-indigo-500 rounded-full inline-block"></span>
+            ローター配置ガイド（対角セット図）
+          </h2>
+          <span id="rotor-holes-label" class="text-xs font-medium text-slate-500">6穴ローター想定</span>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">同じ色のラインで結ばれた穴同士に向かい合わせでセットしてください。</p>
+
+        <div class="flex justify-center items-center py-2 bg-slate-50 rounded-xl border border-slate-100">
+          <svg id="rotor-svg" class="w-full max-w-[300px] h-auto" viewBox="0 0 320 320">
+            <!-- JSでSVGローター図を描画 -->
+          </svg>
+        </div>
+      </div>
+
+      <!-- 実験ノート用コピーボタン -->
+      <div class="pt-1">
+        <button type="button" onclick="copyResultToClipboard()" class="w-full py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 active:scale-[0.99]">
+          <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          実験ノート用に結果をコピー
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- トースト通知（alertの代わり） -->
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 z-50 flex items-center gap-2">
+    <svg class="w-4 h-4 text-teal-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+    <span id="toast-message">コピーしました</span>
+  </div>
+
+  <script>
+    /**
+     * 遠心分離・最適バランス計算シミュレーター
+     * 状態管理と最適化アルゴリズム
+     */
+
+    // 初期データ（最初の画像の「遠心分離①」の値をデフォルトセット）
+    let samples = [
+      { id: 1, name: 'S1', weight: '34.7' },
+      { id: 2, name: 'S2', weight: '35.0' },
+      { id: 3, name: 'S3', weight: '35.3' },
+      { id: 4, name: 'S4', weight: '36.2' },
+      { id: 5, name: 'S5', weight: '36.0' }
+    ];
+
+    let nextId = 6;
+    let latestResult = null;
+
+    // ペアごとのカラーパレット（視認性の高い色分け）
+    const PAIR_COLORS = [
+      { bg: 'bg-teal-50', border: 'border-teal-300', text: 'text-teal-800', badge: 'bg-teal-600', hex: '#0d9488' },
+      { bg: 'bg-sky-50', border: 'border-sky-300', text: 'text-sky-800', badge: 'bg-sky-600', hex: '#0284c7' },
+      { bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-800', badge: 'bg-indigo-600', hex: '#4f46e5' },
+      { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-800', badge: 'bg-emerald-600', hex: '#059669' },
+      { bg: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-800', badge: 'bg-purple-600', hex: '#7c3aed' },
+      { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-800', badge: 'bg-amber-600', hex: '#d97706' }
+    ];
+
+    /**
+     * 入力リストの描画
+     */
+    function renderInputs() {
+      const container = document.getElementById('samples-container');
+      container.innerHTML = '';
+
+      samples.forEach((sample, index) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/80 focus-within:border-teal-500 focus-within:bg-white transition';
+
+        row.innerHTML = `
+          <div class="w-16 shrink-0">
+            <input
+              type="text"
+              value="${escapeHtml(sample.name)}"
+              onchange="updateSampleName(${sample.id}, this.value)"
+              aria-label="試料名"
+              class="w-full text-center font-bold text-sm text-slate-700 bg-white border border-slate-200 rounded-lg py-2 px-1 focus:outline-none focus:border-teal-500"
+            />
+          </div>
+          <div class="relative flex-1">
+            <input
+              type="number"
+              step="0.01"
+              inputmode="decimal"
+              placeholder="0.00"
+              value="${sample.weight}"
+              oninput="updateSampleWeight(${sample.id}, this.value)"
+              aria-label="${escapeHtml(sample.name)}の重量"
+              class="w-full text-right font-bold text-lg text-slate-900 bg-white border border-slate-200 rounded-lg py-2 pl-3 pr-8 focus:outline-none focus:border-teal-500"
+            />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">g</span>
+          </div>
+          <button
+            type="button"
+            onclick="removeSampleRow(${sample.id})"
+            title="削除"
+            class="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition active:scale-90 ${samples.length <= 2 ? 'opacity-30 pointer-events-none' : ''}"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    /**
+     * HTMLエスケープ処理
+     */
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    /**
+     * 試料名の更新
+     */
+    function updateSampleName(id, newName) {
+      const target = samples.find(s => s.id === id);
+      if (target) {
+        target.name = newName.trim() || `S${id}`;
+        calculateOptimalBalance();
+      }
+    }
+
+    /**
+     * 試料重量の更新（リアルタイム計算）
+     */
+    function updateSampleWeight(id, newWeight) {
+      const target = samples.find(s => s.id === id);
+      if (target) {
+        target.weight = newWeight;
+        calculateOptimalBalance();
+      }
+    }
+
+    /**
+     * 行の追加
+     */
+    function addSampleRow() {
+      if (samples.length >= 16) {
+        showToast('最大16本まで追加できます');
+        return;
+      }
+      const nextNum = samples.length + 1;
+      samples.push({ id: nextId++, name: `S${nextNum}`, weight: '' });
+      renderInputs();
+      calculateOptimalBalance();
+    }
+
+    /**
+     * 行の削除
+     */
+    function removeSampleRow(id) {
+      if (samples.length <= 2) return;
+      samples = samples.filter(s => s.id !== id);
+      renderInputs();
+      calculateOptimalBalance();
+    }
+
+    /**
+     * 本数プリセットの適用
+     */
+    function setPresetCount(count) {
+      const current = [...samples];
+      samples = [];
+      for (let i = 0; i < count; i++) {
+        if (current[i]) {
+          samples.push(current[i]);
+        } else {
+          samples.push({ id: nextId++, name: `S${i + 1}`, weight: '' });
+        }
+      }
+      renderInputs();
+      calculateOptimalBalance();
+      showToast(`${count}本モードに切り替えました`);
+    }
+
+    /**
+     * サンプルデータ入力
+     */
+    function loadSampleData() {
+      samples = [
+        { id: 1, name: 'S1', weight: '34.7' },
+        { id: 2, name: 'S2', weight: '35.0' },
+        { id: 3, name: 'S3', weight: '35.3' },
+        { id: 4, name: 'S4', weight: '36.2' },
+        { id: 5, name: 'S5', weight: '36.0' }
+      ];
+      nextId = 6;
+      renderInputs();
+      calculateOptimalBalance();
+      showToast('サンプル値を入力しました');
+    }
+
+    /**
+     * 全クリア
+     */
+    function clearAllValues() {
+      samples = samples.map((s, idx) => ({ ...s, name: `S${idx + 1}`, weight: '' }));
+      renderInputs();
+      calculateOptimalBalance();
+      showToast('数値をクリアしました');
+    }
+
+    /**
+     * 最適ペアリング探索アルゴリズム（枝刈り付きバックトラッキング）
+     * 評価基準:
+     * 1. 全ペアの中で「最大の質量差」が最小になること（安全第一）
+     * 2. 最大質量差が同じ場合は「全ペアの合計質量差」が最小になること
+     */
+    function findBestPairingForEvenList(items) {
+      const n = items.length;
+      if (n === 0) return { pairs: [], maxDiff: 0, sumDiff: 0 };
+
+      let bestMaxDiff = Infinity;
+      let bestSumDiff = Infinity;
+      let bestPairs = [];
+
+      const used = new Array(n).fill(false);
+      const currentPairs = [];
+
+      function backtrack(pairedCount, currentMax, currentSum) {
+        // 枝刈り: すでに最良解より悪化している場合は打ち切り
+        if (currentMax > bestMaxDiff) return;
+        if (currentMax === bestMaxDiff && currentSum >= bestSumDiff) return;
+
+        if (pairedCount === n) {
+          bestMaxDiff = currentMax;
+          bestSumDiff = currentSum;
+          bestPairs = currentPairs.map(p => ({ ...p }));
+          return;
+        }
+
+        // 未ペアの最初の要素を固定して相手を探す（重複探索の防止）
+        let first = -1;
+        for (let i = 0; i < n; i++) {
+          if (!used[i]) {
+            first = i;
+            break;
+          }
+        }
+
+        used[first] = true;
+        for (let second = first + 1; second < n; second++) {
+          if (!used[second]) {
+            used[second] = true;
+            const diff = Math.abs(items[first].weight - items[second].weight);
+            const nextMax = Math.max(currentMax, diff);
+            const nextSum = currentSum + diff;
+
+            currentPairs.push({
+              a: items[first],
+              b: items[second],
+              diff: diff
+            });
+
+            backtrack(pairedCount + 2, nextMax, nextSum);
+
+            currentPairs.pop();
+            used[second] = false;
+          }
+        }
+        used[first] = false;
+      }
+
+      backtrack(0, 0, 0);
+      return { pairs: bestPairs, maxDiff: bestMaxDiff, sumDiff: bestSumDiff };
+    }
+
+    /**
+     * メイン計算処理
+     */
+    function calculateOptimalBalance() {
+      // 有効な数値が入力されている試料のみ抽出
+      const validItems = samples
+        .filter(s => s.weight !== '' && !isNaN(parseFloat(s.weight)))
+        .map(s => ({
+          id: s.id,
+          name: s.name || `S${s.id}`,
+          weight: parseFloat(s.weight)
+        }));
+
+      document.getElementById('tube-count-badge').textContent = `有効: ${validItems.length}本`;
+
+      if (validItems.length < 2) {
+        renderEmptyResult(validItems);
+        return;
+      }
+
+      let finalResult = null;
+
+      if (validItems.length % 2 === 0) {
+        // 偶数本の場合：水入り不要で全員ペアリング
+        const res = findBestPairingForEvenList(validItems);
+        finalResult = {
+          isOdd: false,
+          pairs: res.pairs,
+          leftover: null,
+          maxDiff: res.maxDiff,
+          sumDiff: res.sumDiff
+        };
+      } else {
+        // 奇数本の場合：1本を「あぶれ者」として除外し、残り偶数本で最適ペアリングを全通り比較
+        let bestOverall = null;
+
+        for (let i = 0; i < validItems.length; i++) {
+          const leftover = validItems[i];
+          const remaining = validItems.filter((_, idx) => idx !== i);
+          const res = findBestPairingForEvenList(remaining);
+
+          if (
+            !bestOverall ||
+            res.maxDiff < bestOverall.maxDiff - 1e-9 ||
+            (Math.abs(res.maxDiff - bestOverall.maxDiff) <= 1e-9 && res.sumDiff < bestOverall.sumDiff - 1e-9)
+          ) {
+            bestOverall = {
+              isOdd: true,
+              pairs: res.pairs,
+              leftover: leftover,
+              maxDiff: res.maxDiff,
+              sumDiff: res.sumDiff
+            };
+          }
+        }
+        finalResult = bestOverall;
+      }
+
+      latestResult = finalResult;
+      renderResult(finalResult);
+    }
+
+    /**
+     * 入力不足時のプレースホルダー表示
+     */
+    function renderEmptyResult(validItems) {
+      latestResult = null;
+      const waterCard = document.getElementById('water-tube-card');
+      waterCard.className = 'rounded-2xl p-4 shadow-sm border bg-slate-100 border-slate-200 text-slate-500 text-center';
+      waterCard.innerHTML = `<p class="text-sm font-medium">2本以上の試料重量を入力すると計算結果が表示されます</p>`;
+
+      document.getElementById('max-diff-badge').textContent = '最大差: - g';
+      document.getElementById('pairs-list').innerHTML = '';
+      document.getElementById('rotor-svg').innerHTML = '';
+    }
+
+    /**
+     * 計算結果とSVGローター図の描画
+     */
+    function renderResult(result) {
+      const waterCard = document.getElementById('water-tube-card');
+      const pairsList = document.getElementById('pairs-list');
+      const maxDiffBadge = document.getElementById('max-diff-badge');
+
+      // 1. 水入り（バランス管）案内カードの更新
+      if (result.isOdd && result.leftover) {
+        const targetWeight = result.leftover.weight.toFixed(2).replace(/\.00$/, '.0');
+        waterCard.className = 'rounded-2xl p-4 shadow-sm border-2 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300';
+        waterCard.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <span class="inline-block px-2 py-0.5 text-[11px] font-bold bg-amber-500 text-white rounded-md mb-1">
+                水入り（バランス管）が必要
+              </span>
+              <h3 class="text-sm font-bold text-slate-800">
+                あぶれ者 <span class="text-amber-800 underline decoration-amber-400 decoration-2">${escapeHtml(result.leftover.name)}</span> と向かい合わせにセット
+              </h3>
+              <p class="text-xs text-slate-600 mt-1">水入り管を以下の重量に調整してください：</p>
+            </div>
+            <div class="text-right bg-white px-3.5 py-2 rounded-xl border border-amber-200 shadow-xs shrink-0">
+              <span class="block text-[10px] font-bold text-amber-600">目標重量</span>
+              <span class="text-2xl font-extrabold text-slate-900 tracking-tight">${targetWeight}</span>
+              <span class="text-xs font-bold text-slate-500">g</span>
+            </div>
+          </div>
+        `;
+      } else {
+        waterCard.className = 'rounded-2xl p-4 shadow-sm border bg-emerald-50 border-emerald-200';
+        waterCard.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-emerald-900">水入り（バランス管）は不要です</h3>
+              <p class="text-xs text-emerald-700 mt-0.5">試料が偶数本のため、すべての試料同士でペアを組めます。</p>
+            </div>
+          </div>
+        `;
+      }
+
+      // 2. 最大差バッジの更新
+      maxDiffBadge.textContent = `最大質量差: ${result.maxDiff.toFixed(2)} g`;
+      if (result.maxDiff <= 0.1) {
+        maxDiffBadge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800';
+      } else if (result.maxDiff <= 0.5) {
+        maxDiffBadge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-teal-100 text-teal-800';
+      } else {
+        maxDiffBadge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800';
+      }
+
+      // 3. ペアカードの描画
+      pairsList.innerHTML = '';
+
+      // 試料ペアを描画
+      result.pairs.forEach((pair, idx) => {
+        const color = PAIR_COLORS[idx % PAIR_COLORS.length];
+        const card = document.createElement('div');
+        card.className = `p-3 rounded-xl border ${color.bg} ${color.border} flex items-center justify-between gap-2`;
+        card.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-6 h-6 rounded-full ${color.badge} text-white text-xs font-bold flex items-center justify-center shrink-0">
+              ${idx + 1}
+            </span>
+            <div class="truncate">
+              <div class="text-sm font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                <span>${escapeHtml(pair.a.name)} <span class="text-xs font-normal text-slate-600">(${pair.a.weight}g)</span></span>
+                <span class="text-slate-400 text-xs">⇄</span>
+                <span>${escapeHtml(pair.b.name)} <span class="text-xs font-normal text-slate-600">(${pair.b.weight}g)</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="text-[10px] font-bold text-slate-500 block">質量差</span>
+            <span class="text-xs font-extrabold ${color.text}">${pair.diff.toFixed(2)} g</span>
+          </div>
+        `;
+        pairsList.appendChild(card);
+      });
+
+      // 奇数本の場合は「あぶれ者 ＆ 水入り」のペアもリストに並べて表示
+      if (result.isOdd && result.leftover) {
+        const idx = result.pairs.length;
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50/70 flex items-center justify-between gap-2';
+        card.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
+              ${idx + 1}
+            </span>
+            <div class="truncate">
+              <div class="text-sm font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                <span>${escapeHtml(result.leftover.name)} <span class="text-xs font-normal text-slate-600">(${result.leftover.weight}g)</span></span>
+                <span class="text-amber-500 text-xs">⇄</span>
+                <span class="text-amber-800">水入り <span class="text-xs font-bold">(${result.leftover.weight}g)</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="text-[10px] font-bold text-amber-700 block">質量差</span>
+            <span class="text-xs font-extrabold text-amber-800">0.00 g</span>
+          </div>
+        `;
+        pairsList.appendChild(card);
+      }
+
+      // 4. SVGローター配置図の描画
+      renderRotorSvg(result);
+    }
+
+    /**
+     * ローター配置ガイドSVGの描画
+     */
+    function renderRotorSvg(result) {
+      const svg = document.getElementById('rotor-svg');
+      const totalTubes = result.pairs.length * 2 + (result.isOdd ? 2 : 0);
+
+      // 一般的なローター穴数（6穴, 8穴, 12穴, 16穴など偶数穴）を選択
+      let rotorCapacity = 6;
+      if (totalTubes <= 6) rotorCapacity = 6;
+      else if (totalTubes <= 8) rotorCapacity = 8;
+      else if (totalTubes <= 12) rotorCapacity = 12;
+      else rotorCapacity = Math.ceil(totalTubes / 2) * 2;
+
+      document.getElementById('rotor-holes-label').textContent = `${rotorCapacity}穴ローター配置例`;
+
+      const cx = 160;
+      const cy = 160;
+      const radius = 105;
+      const holeRadius = rotorCapacity <= 8 ? 22 : 17;
+
+      // 全ペアリスト（水入りペア含む）を作成
+      const allPairs = result.pairs.map((p, i) => ({
+        aLabel: p.a.name,
+        bLabel: p.b.name,
+        color: PAIR_COLORS[i % PAIR_COLORS.length].hex,
+        isWater: false
+      }));
+
+      if (result.isOdd && result.leftover) {
+        allPairs.push({
+          aLabel: result.leftover.name,
+          bLabel: '水入り',
+          color: '#f59e0b',
+          isWater: true
+        });
+      }
+
+      // 各穴のスロット情報を初期化
+      const slots = new Array(rotorCapacity).fill(null);
+      const half = rotorCapacity / 2;
+
+      // 対角位置（i と i + half）にペアを均等配置
+      allPairs.forEach((pair, idx) => {
+        // 見栄え良く分散させるためのスロットインデックス計算
+        let pos1 = idx;
+        if (rotorCapacity === 6 && allPairs.length === 2 && idx === 1) pos1 = 1;
+        const pos2 = (pos1 + half) % rotorCapacity;
+
+        slots[pos1] = { label: pair.aLabel, color: pair.color, isWater: false };
+        slots[pos2] = { label: pair.bLabel, color: pair.color, isWater: pair.isWater };
+      });
+
+      let svgContent = `
+        <!-- ローター外周 -->
+        <circle cx="${cx}" cy="${cy}" r="142" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2" />
+        <circle cx="${cx}" cy="${cy}" r="134" fill="#f8fafc" />
+        <!-- 中心軸 -->
+        <circle cx="${cx}" cy="${cy}" r="22" fill="#cbd5e1" stroke="#94a3b8" stroke-width="2" />
+        <circle cx="${cx}" cy="${cy}" r="8" fill="#64748b" />
+      `;
+
+      // 対角を結ぶガイドラインを先に描画
+      allPairs.forEach((pair, idx) => {
+        const pos1 = idx;
+        const pos2 = (pos1 + half) % rotorCapacity;
+
+        const angle1 = (pos1 / rotorCapacity) * 2 * Math.PI - Math.PI / 2;
+        const angle2 = (pos2 / rotorCapacity) * 2 * Math.PI - Math.PI / 2;
+
+        const x1 = cx + radius * Math.cos(angle1);
+        const y1 = cy + radius * Math.sin(angle1);
+        const x2 = cx + radius * Math.cos(angle2);
+        const y2 = cy + radius * Math.sin(angle2);
+
+        svgContent += `
+          <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+            stroke="${pair.color}" stroke-width="3"
+            stroke-dasharray="${pair.isWater ? '5,4' : 'none'}" opacity="0.65" />
+        `;
+      });
+
+      // 各穴（ホール）の描画
+      for (let i = 0; i < rotorCapacity; i++) {
+        const angle = (i / rotorCapacity) * 2 * Math.PI - Math.PI / 2;
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        const slot = slots[i];
+
+        if (slot) {
+          svgContent += `
+            <g>
+              <circle cx="${x}" cy="${y}" r="${holeRadius}" fill="${slot.color}" stroke="#ffffff" stroke-width="2.5" />
+              <text x="${x}" y="${y + 4}" text-anchor="middle" fill="#ffffff" font-size="${slot.label.length > 3 ? '10' : '12'}" font-weight="bold">
+                ${escapeHtml(slot.label)}
+              </text>
+            </g>
+          `;
+        } else {
+          svgContent += `
+            <g>
+              <circle cx="${x}" cy="${y}" r="${holeRadius}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5" />
+              <text x="${x}" y="${y + 3}" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="bold">
+                空
+              </text>
+            </g>
+          `;
+        }
+      }
+
+      svg.innerHTML = svgContent;
+    }
+
+    /**
+     * クリップボードへのコピー処理（iFrame制限対策でexecCommandを使用）
+     */
+    function copyResultToClipboard() {
+      if (!latestResult) {
+        showToast('コピーする計算結果がありません');
+        return;
+      }
+
+      let lines = ['【遠心分離バランス配置結果】'];
+      latestResult.pairs.forEach((p, i) => {
+        lines.push(`ペア${i + 1}: ${p.a.name}(${p.a.weight}g) ⇄ ${p.b.name}(${p.b.weight}g) [差 ${p.diff.toFixed(2)}g]`);
+      });
+
+      if (latestResult.isOdd && latestResult.leftover) {
+        lines.push(`ペア${latestResult.pairs.length + 1}: ${latestResult.leftover.name}(${latestResult.leftover.weight}g) ⇄ 水入り(${latestResult.leftover.weight}g)`);
+        lines.push(`★用意する水入り重量: ${latestResult.leftover.weight} g`);
+      } else {
+        lines.push('★水入り: 不要（偶数本）');
+      }
+
+      const textToCopy = lines.join('\n');
+
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      try {
+        document.execCommand('copy');
+        showToast('実験ノート用に結果をコピーしました！');
+      } catch (err) {
+        showToast('コピーに失敗しました');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    /**
+     * トースト通知表示
+     */
+    let toastTimer = null;
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      toastMsg.textContent = msg;
+      toast.classList.remove('opacity-0');
+      toast.classList.add('opacity-100');
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0');
+      }, 2200);
+    }
+
+    // 初期起動
+    window.addEventListener('DOMContentLoaded', () => {
+      renderInputs();
+      calculateOptimalBalance();
+    });
+  </script>
+</body>
+</html>
